@@ -6,4 +6,4 @@ python-multipart
 langchain
 langchain_openai 
 langchain_community
-faiss-gpu
+faiss-cpu
