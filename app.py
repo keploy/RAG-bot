@@ -59,7 +59,9 @@ if mdx_file_paths:
 
     print("Creating conversational chain...")
     # Create a conversational chain
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=False, output_key="answer")
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key="answer", max_messages=10)
+
+    
     llm = AzureChatOpenAI(
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         azure_deployment="keploy-gpt4o",
@@ -69,7 +71,7 @@ if mdx_file_paths:
     )
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vectordb.as_retriever(),
+        retriever=vectordb.as_retriever(search_kwargs={"k": 3}),
         memory=memory,
         return_source_documents=True,
         verbose=True,
@@ -92,19 +94,23 @@ def chat(question: Question):
         raise HTTPException(status_code=400, detail="No question provided")
 
     # Perform similarity search
-    search_results = vectordb.similarity_search(question.question, k=3)
-    context = "\n".join([doc.page_content for doc in search_results])
+    
+    try:
+        search_results = vectordb.similarity_search(question.question, k=3)
+        context = "\n".join([doc.page_content for doc in search_results])
 
-    # Get response from conversation chain
-    response = conversation_chain({"question": question.question})
+        # Get response from conversation chain
+        response = conversation_chain({"question": question.question})
 
-    # Prepare the response
-    result = {
-        "answer": response['answer'],
-        "sources": [doc.metadata['source'] for doc in response.get('source_documents', [])]
-    }
+        # Prepare the response
+        result = {
+            "answer": response['answer'],
+            "sources": [doc.metadata['source'] for doc in response.get('source_documents', [])]
+        }
 
-    return result
+        return result
+    except Exception as e:
+        return {"error": str(e)}
 
 if __name__ == '__main__':
     print("Starting fastapi app...")
