@@ -1,6 +1,7 @@
 import sys
 print("Starting import process...")
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import openai
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -16,7 +17,19 @@ print("Loading environment variables...")
 load_dotenv()
 print("Environment variables loaded.")
 
-app = FastAPI()
+app = FastAPI(__name__)
+
+origins = [
+    "*"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 print("Setting up Azure OpenAI...")
 # Azure OpenAI setup
