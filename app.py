@@ -19,16 +19,14 @@ print("Environment variables loaded.")
 
 app = FastAPI(__name__)
 
-origins = [
-    "*"
-]
-
+# Set up CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all methods including OPTIONS
+    allow_headers=["*"],  # Allows all headers
+    expose_headers=["*"],  # Ensures custom headers are accessible
 )
 
 print("Setting up Azure OpenAI...")
