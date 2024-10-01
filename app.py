@@ -17,7 +17,7 @@ print("Loading environment variables...")
 load_dotenv()
 print("Environment variables loaded.")
 
-app = FastAPI(__name__)
+app = FastAPI()
 
 # Set up CORS middleware configuration
 app.add_middleware(
