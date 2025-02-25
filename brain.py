@@ -11,7 +11,7 @@ def parse_mdx(file: BytesIO, filename: str) -> Tuple[List[str], str]:
     content = file.read().decode('utf-8')
     # You might want to add more sophisticated MDX parsing here
     # print("Parsing MDX file:", filename)
-    return [content], filename
+    return [content], filename 
 
 def text_to_docs(text: List[str], filename: str) -> List[Document]:
     if isinstance(text, str):

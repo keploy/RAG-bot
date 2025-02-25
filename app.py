@@ -11,16 +11,21 @@ from langchain.schema import SystemMessage, HumanMessage
 from langchain.prompts import PromptTemplate
 import openai
 import uvicorn
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-print("Loading environment variables...")
+logger.info("Loading environment variables...")
 load_dotenv()
 
 # Verify if the necessary environment variables are set
 required_env_vars = ["AZURE_OPENAI_ENDPOINT", "OPENAI_API_VERSION", "AZURE_OPENAI_API_KEY"]
 missing_vars = [var for var in required_env_vars if os.getenv(var) is None]
 if missing_vars:
-    print(f"Error: Missing environment variables: {', '.join(missing_vars)}")
+    logger.error(f"Missing environment variables: {', '.join(missing_vars)}")
     sys.exit(1)
 
 # Initialize FastAPI app
@@ -37,34 +42,34 @@ app.add_middleware(
 )
 
 # Azure OpenAI setup
-print("Setting up Azure OpenAI...")
+logger.info("Setting up Azure OpenAI...")
 openai.api_type = "azure"
 openai.api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
 openai.api_version = os.getenv("OPENAI_API_VERSION")
 openai.api_key = os.getenv("AZURE_OPENAI_API_KEY")
-print("Azure OpenAI setup completed.")
+logger.info("Azure OpenAI setup completed.")
 
 # Function to get all MDX files from the docs directory and its subdirectories
 def get_mdx_files(directory):
-    print(f"Searching for MDX files in {directory}...")
+    logger.info(f"Searching for MDX files in {directory}...")
     mdx_files = []
     for root, dirs, files in os.walk(directory):
         for file in files:
             if file.endswith('.md'):
                 mdx_files.append(os.path.join(root, file))
-    print(f"Found {len(mdx_files)} MDX files.")
+    logger.info(f"Found {len(mdx_files)} MDX files.")
     return mdx_files
 
 # Function to create a vector database for the provided MDX files
 def create_vectordb(files, filenames):
     try:
-        print("Creating vector database...")
+        logger.info("Creating vector database...")
         from brain import get_index_for_mdx
         vectordb = get_index_for_mdx(files, filenames)
-        print("Vector database created successfully.")
+        logger.info("Vector database created successfully.")
         return vectordb
     except Exception as e:
-        print(f"Error creating vector database: {str(e)}")
+        logger.error(f"Error creating vector database: {str(e)}")
         sys.exit(1)
 
 # Load MDX files and create vector database
@@ -73,16 +78,16 @@ mdx_file_paths = get_mdx_files(docs_folder)
 
 if mdx_file_paths:
     try:
-        print("Loading and creating vector database from MDX files...")
+        logger.info("Loading and creating vector database from MDX files...")
         mdx_files = [open(f, "rb").read() for f in mdx_file_paths]
         mdx_file_names = [os.path.basename(f) for f in mdx_file_paths]
         vectordb = create_vectordb(mdx_files, mdx_file_names)
     except Exception as e:
-        print(f"Error processing MDX files: {str(e)}")
+        logger.error(f"Error processing MDX files: {str(e)}")
         sys.exit(1)
 
     # Create a conversational chain
-    print("Creating conversational chain...")
+    logger.info("Creating conversational chain...")
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key="answer", max_messages=10)
 
     
@@ -100,15 +105,13 @@ if mdx_file_paths:
         template=template, 
         input_variables=["context", "question"]
         )
-
     llm = AzureChatOpenAI(
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        azure_deployment="keploy-gpt4o",
+        azure_deployment="gpt-4o-global-standard",
         openai_api_version=os.getenv("OPENAI_API_VERSION"),
         openai_api_type="azure",
         temperature=0.7,
     )
-    
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=vectordb.as_retriever(search_kwargs={"k": 3}),
@@ -117,9 +120,9 @@ if mdx_file_paths:
         verbose=False,
         combine_docs_chain_kwargs={"prompt": prompt}
     )
-    print("Conversational chain created successfully.")
+    logger.info("Conversational chain created successfully.")
 else:
-    print("Error: No MDX files found in the docs folder.")
+    logger.error("No MDX files found in the docs folder.")
     sys.exit(1)
 
 # Define the Question model for the API request
@@ -129,8 +132,9 @@ class Question(BaseModel):
 # API endpoint to handle chat queries
 @app.post('/chat')
 def chat(question: Question):
-    print("Received chat request")
+    logger.info("Received chat request")
     if not question.question:
+        logger.warning("No question provided")
         raise HTTPException(status_code=400, detail="No question provided")
     
     try:
@@ -141,6 +145,9 @@ def chat(question: Question):
         # Get response from conversation chain
         response = conversation_chain({"question": question.question})
 
+        # Log the response for debugging
+        logger.info(f"Response from conversation chain: {response}")
+
         # Prepare the result response
         result = {
             "answer": response['answer'],
@@ -149,11 +156,11 @@ def chat(question: Question):
         return result
 
     except Exception as e:
-        print(f"Error during chat processing: {str(e)}")
+        logger.error(f"Error during chat processing: {str(e)}")
         raise HTTPException(status_code=500, detail="An error occurred during chat processing")
 
 # Main entry point to start the FastAPI server
 if __name__ == '__main__':
-    print("Starting FastAPI app...")
+    logger.info("Starting FastAPI app...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
-    print("FastAPI app started.")
+    logger.info("FastAPI app started.")
