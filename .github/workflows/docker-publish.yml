@@ -6,8 +6,10 @@ on:
         - main
 
 env:
+
   # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
+
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
 
@@ -19,6 +21,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
       id-token: write
@@ -31,7 +34,8 @@ jobs:
       # https://github.com/sigstore/cosign-installer
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.4.0
-# Set up BuildKit Docker container builder to be able to build
+
+      # Set up BuildKit Docker container builder to be able to build
       # multi-platform images and export cache
       # https://github.com/docker/setup-buildx-action
       - name: Set up Docker Buildx
@@ -69,6 +73,7 @@ jobs:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ env.CHATBOT_RELEASE_TAG }} # Use the generated tag from the environment variable
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
+          
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
