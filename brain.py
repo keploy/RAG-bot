@@ -6,12 +6,19 @@ from langchain.docstore.document import Document
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores.faiss import FAISS
+from langchain.indexes import SQLRecordManager, index
+
+record_manager = SQLRecordManager(
+    "faiss/document_index", db_url="sqlite:///record_manager_cache.sql"
+)
+
 
 def parse_mdx(file: BytesIO, filename: str) -> Tuple[List[str], str]:
     content = file.read().decode('utf-8')
     # You might want to add more sophisticated MDX parsing here
     # print("Parsing MDX file:", filename)
     return [content], filename 
+
 
 def text_to_docs(text: List[str], filename: str) -> List[Document]:
     if isinstance(text, str):
@@ -29,9 +36,9 @@ def text_to_docs(text: List[str], filename: str) -> List[Document]:
             # Calculate the start and end line numbers for this chunk
             start_line = page[:page.index(chunk)].count('\n') + 1
             end_line = start_line + chunk.count('\n')
-            
+
             doc = Document(
-                page_content=chunk, 
+                page_content=chunk,
                 metadata={
                     "chunk": j,
                     "source": f"{filename}:{start_line}-{end_line}",
@@ -45,16 +52,15 @@ def text_to_docs(text: List[str], filename: str) -> List[Document]:
 
 
 def get_index_for_mdx(mdx_files, mdx_names):
+    record_manager.create_schema()
+    print("Updating index for MDX files...")
 
-    print("Creating index for MDX files...")
-
-    if os.path.exists("document_index"):
-        print("Index already exists.")
-        return FAISS.load_local(
-            folder_path ="document_index", 
-            embeddings =AzureOpenAIEmbeddings(model="keploy-docs-embedding"), 
-            allow_dangerous_deserialization =True
-        )
+    embeddings = AzureOpenAIEmbeddings(
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        model="keploy-docs-embedding",
+        chunk_size=1,  # You can adjust this value as needed
+    )
 
     documents = []
     for mdx_file, mdx_name in zip(mdx_files, mdx_names):
@@ -62,16 +68,18 @@ def get_index_for_mdx(mdx_files, mdx_names):
         # print("Text to docs:", filename)
         documents = documents + text_to_docs(text, filename)
 
-    # print("Embedding documents:", documents)
-    
-    embeddings = AzureOpenAIEmbeddings(
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        model ="keploy-docs-embedding",
-        chunk_size=1,  # You can adjust this value as needed
-    )
-    # print("FAISS index:", embeddings)
-    
-    index = FAISS.from_documents(documents, embeddings)
-    index.save_local("document_index")
-    return index
+    if os.path.exists("document_index"):
+        vector_store = FAISS.load_local(
+            folder_path="document_index",
+            embeddings=AzureOpenAIEmbeddings(model="keploy-docs-embedding"),
+            allow_dangerous_deserialization=True
+        )
+        index(documents, record_manager, vector_store,
+              cleanup="full", source_id_key="source")
+    else:
+        vector_store = FAISS(embedding_function=embeddings)
+        index(documents, record_manager, vector_store,
+              cleanup="full", source_id_key="source")
+        vector_store.save_local("document_index")
+
+    return vector_store
