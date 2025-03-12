@@ -15,7 +15,7 @@ env:
 
 jobs:
   build:
-    runs-on: [selfhosted-linux-amd64]
+    runs-on: ubuntu-latest
     env:
       GOPRIVATE: github.com/keploy
     permissions:
@@ -73,7 +73,7 @@ jobs:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ env.CHATBOT_RELEASE_TAG }} # Use the generated tag from the environment variable
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
-          
+
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
