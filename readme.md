@@ -1,5 +1,5 @@
 <p align="center">
-  <img align="center" src="https://docs.keploy.io/img/keploy-logo-dark.svg?s=200&v=4" height="40%" width="40%"  alt="keploy logo"/>  <!-- we can add banner here, maybe a poster or a gif -->
+  <img align="center" src="https://docs.keploy.io/img/keploy-logo-dark.svg?s=200&v=4" height="40%" width="40%"  alt="keploy logo"/> 
 </p>
 <h3 align="center">
 <b>
@@ -49,8 +49,43 @@ pip install -r requirements.txt
 ```bash
 python app.py
 ```
-The bot should now be running locally on the `localhost `.
+The bot should now be running locally at `http://localhost:5000`.
 
 ## Folder Structure
 ```
 keploy-ragbot/
+│-- .github/workflows/     # GitHub Actions for CI/CD
+│-- docs/                  # Documentation files
+│-- document_index/        # Index files for document retrieval
+│-- app.py                 # Main application file
+│-- brain.py               # Core logic of the chatbot
+│-- index.faiss            # FAISS index for fast search
+│-- index.pkl              # Serialized index for RAG
+│-- requirements.txt       # Dependencies
+│-- vercel.json            # Deployment configuration for Vercel
+│-- Dockerfile             # Docker container setup
+│-- .gitignore             # Ignored files
+```
+
+## Contributing
+We welcome contributions! Follow these steps to contribute:
+
+1. **Fork the Repository** on GitHub.
+2. **Clone Your Fork** to your local system.
+3. **Create a New Branch** for your changes.
+   ```bash
+   git checkout -b feature-name
+   ```
+4. **Make Your Changes** and commit them.
+5. **Push Your Changes** to your fork.
+   ```bash
+   git push origin feature-name
+   ```
+6. **Create a Pull Request** to the main repository.
+
+---
+
+For any issues or feature requests, feel free to open an issue in the repository!
+
+You can also reach out to us for any kind of queries and discussions on our [![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://join.slack.com/t/keploy/shared_invite/zt-2poflru6f-_VAuvQfCBT8fDWv1WwSbkw)
+
