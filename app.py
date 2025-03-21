@@ -72,6 +72,28 @@ def create_vectordb(files, filenames):
         logger.error(f"Error creating vector database: {str(e)}")
         sys.exit(1)
 
+# Function to prepare context from search results
+def prepare_context(search_results):
+    context_parts = []
+    for doc in search_results:
+        try:
+            # Default values for missing metadata
+            doc_type = doc.metadata.get("type", "text")
+            language = doc.metadata.get("language", "text")
+            header = doc.metadata.get("header", "").strip()
+
+            if doc_type == "code":
+                # Format code snippets
+                context_parts.append(f"```{language}\n{doc.page_content}\n```")
+            else:
+                # Include text with headers (if available)
+                content = doc.page_content.strip()
+                context_parts.append(f"{header}\n{content}" if header else content)
+        except Exception as e:
+            logger.warning(f"Error processing document metadata: {e}")
+            context_parts.append(doc.page_content)
+    return "\n\n".join(context_parts)
+
 # Load MDX files and create vector database
 docs_folder = os.path.join(os.getcwd(), "docs")
 mdx_file_paths = get_mdx_files(docs_folder)
@@ -90,21 +112,20 @@ if mdx_file_paths:
     logger.info("Creating conversational chain...")
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key="answer", max_messages=10)
 
-    
 
     template = """
-        You are a helpful assistant specialized in answering technical questions related to Keploy. You are provided with context from a vector database and a chat history. Your task is to answer the user's question based on the provided context and the chat history. If you don't know the answer, just say 'I don't know'. Do not try to make up an answer. If the question is not related to Keploy, say 'I am not sure about that'."
+        You are a helpful assistant specialized in answering technical questions related to Keploy. You are provided with context from a vector database and a chat history. Your task is to answer the user's question based on the provided context and the chat history. The context may contain both documentation text and code snippets. When answering questions, prioritize relevant code snippets from the context and explain their functionality clearly. Keep your responses focused on Keploy - if you don't know the answer, simply say 'I don't know', and if the question isn't related to Keploy, respond with 'I am not sure about that'."
 
         Context: {context}
         Question: {question}
-        Answer: 
+        Answer:
 
-        """
+    """
 
     prompt = PromptTemplate(
-        template=template, 
+        template=template,
         input_variables=["context", "question"]
-        )
+    )
     llm = AzureChatOpenAI(
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         azure_deployment="gpt-4o-global-standard",
@@ -114,7 +135,7 @@ if mdx_file_paths:
     )
     conversation_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
-        retriever=vectordb.as_retriever(search_kwargs={"k": 3}),
+        retriever=vectordb.as_retriever(search_kwargs={"k": 5}),
         memory=memory,
         return_source_documents=True,
         verbose=False,
@@ -136,24 +157,33 @@ def chat(question: Question):
     if not question.question:
         logger.warning("No question provided")
         raise HTTPException(status_code=400, detail="No question provided")
-    
+
     try:
-        # Perform similarity search on vector database
-        search_results = vectordb.similarity_search(question.question, k=3)
-        context = "\n".join([doc.page_content for doc in search_results])
-        
-        # Get response from conversation chain
+        # Retrieve search results
+        search_results = vectordb.similarity_search(question.question, k=5)
+
+        # Prepare context
+        context = prepare_context(search_results)
+
+        # Get response from the conversational chain
         response = conversation_chain({"question": question.question})
 
-        # Log the response for debugging
-        logger.info(f"Response from conversation chain: {response}")
+        # Extract code snippets from source documents
+        code_snippets = []
+        for doc in response.get('source_documents', []):
+            try:
+                if doc.metadata.get('type', 'text') == 'code':
+                    code_snippets.append({
+                        "language": doc.metadata.get('language', 'text'),
+                        "code": doc.page_content
+                    })
+            except Exception as e:
+                logger.warning(f"Error processing code snippet metadata: {e}")
 
-        # Prepare the result response
-        result = {
+        return {
             "answer": response['answer'],
-            "sources": [doc.metadata.get('source', 'Unknown') for doc in response.get('source_documents', [])]
+            "code_snippets": code_snippets
         }
-        return result
 
     except Exception as e:
         logger.error(f"Error during chat processing: {str(e)}")

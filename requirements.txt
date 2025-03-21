@@ -4,6 +4,7 @@ uvicorn
 python-dotenv
 python-multipart
 langchain
-langchain_openai 
+langchain_openai
 langchain_community
 faiss-cpu
+markdown-it-py
